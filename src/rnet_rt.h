@@ -12,7 +12,7 @@
 class Rnet_engine : public baseEngine {
 
 public:
-    Rnet_engine();
+    Rnet_engine(const char *path);
     ~Rnet_engine();
     void init(int row, int col);
     friend class Rnet;

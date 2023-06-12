@@ -18,7 +18,7 @@ class Pnet_engine:public baseEngine
 public:
     Pnet_engine();
     ~Pnet_engine();
-    void init(int row,int col);
+    void init(int row,int col, const char *path);
     friend class Pnet;
 
 };

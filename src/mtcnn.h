@@ -7,7 +7,7 @@
 class mtcnn
 {
 public:
-    mtcnn(int row, int col);
+    mtcnn(int row, int col, const char *path);
     ~mtcnn();
     vector<struct Bbox> findFace(cv::Mat &image);
 private:

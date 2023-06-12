@@ -65,5 +65,6 @@ void getFilePaths(std::string imagesPath, std::vector<struct Paths>& paths) {
 
 void loadInputImage(std::string inputFilePath, cv::Mat& image, int videoFrameWidth, int videoFrameHeight) {
     image = cv::imread(inputFilePath.c_str());
+//    cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
     cv::resize(image, image, cv::Size(videoFrameWidth, videoFrameHeight));
 }

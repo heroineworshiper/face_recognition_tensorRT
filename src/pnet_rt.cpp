@@ -5,8 +5,8 @@
 #include <fstream>
 
 // stuff we know about the network and the caffe input/output blobs
-Pnet_engine::Pnet_engine() : baseEngine("../mtCNNModels/det1_relu.prototxt",
-                                        "../mtCNNModels/det1_relu.caffemodel",
+Pnet_engine::Pnet_engine() : baseEngine("",
+                                        "",
                                         "data",
                                         "conv4-2",
                                         "prob1") {
@@ -16,7 +16,9 @@ Pnet_engine::~Pnet_engine() {
     shutdownProtobufLibrary();
 }
 
-void Pnet_engine::init(int row, int col) {
+void Pnet_engine::init(int row, int col, const char *path) {
+    prototxt = std::string(path) + "det1_relu.prototxt";
+    model = std::string(path) + "det1_relu.caffemodel";
 
     //modifiy the input shape of prototxt, write to temp.prototxt
     int first_spce = 16, second_space = 4;

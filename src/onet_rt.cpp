@@ -4,13 +4,15 @@
 
 #include "onet_rt.h"
 
-Onet_engine::Onet_engine() : baseEngine("../mtCNNModels/det3_relu.prototxt",
-                                        "../mtCNNModels/det3_relu.caffemodel",
+Onet_engine::Onet_engine(const char *path) : baseEngine(path,
+                                        path,
                                         "data",
                                         "conv6-2",
                                         "prob1",
                                         "conv6-3"
                                         ) {
+    prototxt = prototxt + "det3_relu.prototxt";
+    model = model + "det3_relu.caffemodel";
 };
 
 Onet_engine::~Onet_engine() {

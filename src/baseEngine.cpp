@@ -83,6 +83,7 @@ void baseEngine::caffeToGIEModel(const std::string &deployFile,                /
         // Build the engine
         builder->setMaxBatchSize(maxBatchSize);
         config->setMaxWorkspaceSize(1 << 25);
+        config->setFlag(nvinfer1::BuilderFlag::kFP16);
         ICudaEngine *engine = builder->buildEngineWithConfig(*network, *config);
         assert(engine);
 

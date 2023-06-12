@@ -31,8 +31,8 @@ public:
                                  IHostMemory *&gieModelStream);             // output buffer for the GIE model
     virtual void init(int row,int col);
     friend class Pnet;
-    const string prototxt;
-    const string model   ;
+    string prototxt;
+    string model   ;
     const char *INPUT_BLOB_NAME;
     const char *OUTPUT_PROB_NAME;
     const char *OUTPUT_LOCATION_NAME;

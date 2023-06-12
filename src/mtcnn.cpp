@@ -1,6 +1,6 @@
 #include "mtcnn.h"
 // #define LOG
-mtcnn::mtcnn(int row, int col){
+mtcnn::mtcnn(int row, int col, const char *path){
     //set NMS thresholds
     nms_threshold[0] = 0.7;
     nms_threshold[1] = 0.7;
@@ -11,12 +11,14 @@ mtcnn::mtcnn(int row, int col){
     float minl = row<col?row:col;
     int MIN_DET_SIZE = 12;
     float m = (float)MIN_DET_SIZE/minsize;
+//    float m = (float)1;
     minl *= m;
     float factor = 0.709;
     int factor_count = 0;
     while(minl>MIN_DET_SIZE){
         if(factor_count>0)m = m*factor;
         scales_.push_back(m);
+//printf("mtcnn::mtcnn %d m=%f\n", __LINE__, m);
         minl *= factor;
         factor_count++;
     }
@@ -43,19 +45,19 @@ mtcnn::mtcnn(int row, int col){
         int changedH = (int)ceil(row*scales_.at(i));
         int changedW = (int)ceil(col*scales_.at(i));
         std::cout << "changedH = " << changedH << ", changedW = " << changedW << std::endl;
-        pnet_engine[i].init(changedH,changedW);
+        pnet_engine[i].init(changedH, changedW, path);
         simpleFace_[i] =  new Pnet(changedH,changedW,pnet_engine[i]);
     }
     cout<<"End generate pnet runtime models"<<endl;
 
     //generate rnet model
-    rnet_engine = new Rnet_engine();
+    rnet_engine = new Rnet_engine(path);
     rnet_engine->init(24,24);
     refineNet = new Rnet(*rnet_engine);
     cout<<"End generate rnet runtime models"<<endl;
 
     //generate onet model
-    onet_engine = new Onet_engine();
+    onet_engine = new Onet_engine(path);
     onet_engine->init(48,48);
     outNet = new Onet(*onet_engine);
     cout<<"End generating TensorRT runtime models"<<endl;
@@ -76,6 +78,7 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
     struct orderScore order;
     int count = 0;
 
+//printf("mtcnn::findFace %d %d\n", __LINE__, scales_.size());
     clock_t first_time = clock();
     for (size_t i = 0; i < scales_.size(); i++) {
         int changedH = (int)ceil(image.rows*scales_.at(i));
@@ -83,6 +86,11 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
         clock_t run_first_time = clock();
         resize(image, reImage, cv::Size(changedW, changedH), 0, 0, cv::INTER_LINEAR);
         (*simpleFace_[i]).run(reImage, scales_.at(i),pnet_engine[i]);
+// printf("mtcnn::findFace %d w=%d h=%d got %d\n", 
+// __LINE__, 
+// changedW, 
+// changedH,
+// (int)(*simpleFace_[i]).boundingBox_.size());
 
 #ifdef LOG
         run_first_time = clock() - run_first_time;
@@ -102,6 +110,8 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
         (*simpleFace_[i]).bboxScore_.clear();
         (*simpleFace_[i]).boundingBox_.clear();
     }
+//printf("mtcnn::findFace %d %d\n", __LINE__, firstBbox_.size());
+
     //the first stage's nms
     vector<struct Bbox> emptyBbox;
     if(count<1)return emptyBbox;
@@ -111,6 +121,10 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
     first_time = clock() - first_time;
     cout<<"first time is  "<<1000*(double)first_time/CLOCKS_PER_SEC<<endl;
 #endif
+
+
+
+
     //second stage
     count = 0;
     clock_t second_time = clock();
@@ -121,6 +135,10 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
             resize(image(temp), secImage, cv::Size(24, 24), 0, 0, cv::INTER_LINEAR);
             transpose(secImage,secImage);
             refineNet->run(secImage,*rnet_engine);
+// printf("mtcnn::findFace %d %f %f\n", 
+// __LINE__, 
+// *(refineNet->score_->pdata+1), 
+// refineNet->Rthreshold);
             if(*(refineNet->score_->pdata+1)>refineNet->Rthreshold){
                 memcpy(it->regreCoord, refineNet->location_->pdata, 4*sizeof(mydataFmt));
                 it->area = (it->x2 - it->x1)*(it->y2 - it->y1);
@@ -135,6 +153,10 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
             }
         }
     }
+//printf("mtcnn::findFace %d %d\n", __LINE__, count);
+
+
+
     if(count<1)return emptyBbox;
     nms(secondBbox_, secondBboxScore_, nms_threshold[1]);
     refineAndSquareBbox(secondBbox_, image.rows, image.cols,true);
@@ -153,6 +175,7 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
             transpose(thirdImage,thirdImage);
             outNet->run(thirdImage,*onet_engine);
             mydataFmt *pp=NULL;
+//printf("mtcnn::findFace %d %f %f\n", __LINE__, *(outNet->score_->pdata+1), outNet->Othreshold);
             if(*(outNet->score_->pdata+1)>outNet->Othreshold){
                 memcpy(it->regreCoord, outNet->location_->pdata, 4*sizeof(mydataFmt));
                 it->area = (it->x2 - it->x1)*(it->y2 - it->y1);
@@ -174,6 +197,7 @@ vector<struct Bbox> mtcnn::findFace(cv::Mat &image){
             }
         }
     }
+//printf("mtcnn::findFace %d %d\n", __LINE__, count);
 
     if(count<1)return emptyBbox;
     refineAndSquareBbox(thirdBbox_, image.rows, image.cols, true);

@@ -8,6 +8,7 @@
 #include "videoStreamer.h"
 #include "network.h"
 #include "mtcnn.h"
+#include <unistd.h>
 
 // Uncomment to print timings in milliseconds
 // #define LOG_TIMES
@@ -30,22 +31,32 @@ int main()
     bool serializeEngine = true;
     int batchSize = 1;
     int nbFrames = 0;
-    int videoFrameWidth = 640;
-    int videoFrameHeight = 480;
+    int videoFrameWidth = 1280;
+    int videoFrameHeight = 720;
     int maxFacesPerScene = 5;
     float knownPersonThreshold = 1.;
     bool isCSICam = false;
 
     // init facenet
-    FaceNetClassifier faceNet = FaceNetClassifier(gLogger, dtype, uffFile, engineFile, batchSize, serializeEngine,
-            knownPersonThreshold, maxFacesPerScene, videoFrameWidth, videoFrameHeight);
+    FaceNetClassifier faceNet = FaceNetClassifier(gLogger, 
+        dtype, 
+        uffFile, 
+        engineFile, 
+        batchSize, 
+        serializeEngine,
+        knownPersonThreshold, 
+        maxFacesPerScene, 
+        videoFrameWidth, 
+        videoFrameHeight);
 
     // init opencv stuff
-    VideoStreamer videoStreamer = VideoStreamer(0, videoFrameWidth, videoFrameHeight, 60, isCSICam);
+//    VideoStreamer videoStreamer = VideoStreamer(0, videoFrameWidth, videoFrameHeight, 60, isCSICam);
     cv::Mat frame;
 
     // init mtCNN
-    mtcnn mtCNN(videoFrameHeight, videoFrameWidth);
+    mtcnn mtCNN(videoFrameHeight, 
+        videoFrameWidth, 
+        "/root/face_recognition_tensorRT/mtCNNModels/");
 
     //init Bbox and allocate memory for "maxFacesPerScene" faces per scene
     std::vector<struct Bbox> outputBbox;
@@ -57,26 +68,40 @@ int main()
     getFilePaths("../imgs", paths);
     for(int i=0; i < paths.size(); i++) {
         loadInputImage(paths[i].absPath, image, videoFrameWidth, videoFrameHeight);
+printf("main %d %s\n", __LINE__, paths[i].absPath.c_str());
         outputBbox = mtCNN.findFace(image);
+printf("main %d got %d\n", __LINE__, outputBbox.size());
         std::size_t index = paths[i].fileName.find_last_of(".");
         std::string rawName = paths[i].fileName.substr(0,index);
         faceNet.forwardAddFace(image, outputBbox, rawName);
         faceNet.resetVariables();
     }
+// for(int i = 0; i < outputBbox.size(); i++)
+// printf("main %d %d %d %d %d\n", 
+// __LINE__, 
+// outputBbox[i].x1,
+// outputBbox[i].y1,
+// outputBbox[i].x2,
+// outputBbox[i].y2);
+
     outputBbox.clear();
 
     // loop over frames with inference
     auto globalTimeStart = chrono::steady_clock::now();
     while (true) {
         auto fps_start = chrono::steady_clock::now();
-        videoStreamer.getFrame(frame);
+//        videoStreamer.getFrame(frame);
+          loadInputImage("../test5.jpg", frame, videoFrameWidth, videoFrameHeight);
+
         if (frame.empty()) {
             std::cout << "Empty frame! Exiting...\n Try restarting nvargus-daemon by "
                          "doing: sudo systemctl restart nvargus-daemon" << std::endl;
             break;
         }
         auto startMTCNN = chrono::steady_clock::now();
+
         outputBbox = mtCNN.findFace(frame);
+printf("main %d %d\n", __LINE__, outputBbox.size());
         auto endMTCNN = chrono::steady_clock::now();
         auto startForward = chrono::steady_clock::now();
         faceNet.forward(frame, outputBbox);
@@ -90,7 +115,7 @@ int main()
         auto milliseconds = chrono::duration_cast<chrono::milliseconds>(fps_end-fps_start).count();
         float fps = (1000/milliseconds);
         std::string label = cv::format("FPS: %.2f ", fps);
-        cv::putText(frame, label, cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+        cv::putText(frame, label, cv::Point(15, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 255), 2);
         
         cv::imshow("VideoSource", frame);
         nbFrames++;
@@ -102,7 +127,7 @@ int main()
             break;
         else if(keyboard == 'n') {
             auto dTimeStart = chrono::steady_clock::now();
-            videoStreamer.getFrame(frame);
+//            videoStreamer.getFrame(frame);
             outputBbox = mtCNN.findFace(frame);
             cv::imshow("VideoSource", frame);
             faceNet.addNewFace(frame, outputBbox);
@@ -115,10 +140,11 @@ int main()
         std::cout << "Forward took " << std::chrono::duration_cast<chrono::milliseconds>(endForward - startForward).count() << "ms\n";
         std::cout << "Feature matching took " << std::chrono::duration_cast<chrono::milliseconds>(endFeatM - startFeatM).count() << "ms\n\n";
         #endif  // LOG_TIMES
+sleep(1);
     }
     auto globalTimeEnd = chrono::steady_clock::now();
     cv::destroyAllWindows();
-    videoStreamer.release();
+//    videoStreamer.release();
     auto milliseconds = chrono::duration_cast<chrono::milliseconds>(globalTimeEnd-globalTimeStart).count();
     double seconds = double(milliseconds)/1000.;
     double fps = nbFrames/seconds;

@@ -11,7 +11,7 @@
 class Onet_engine : public baseEngine {
 
 public:
-    Onet_engine();
+    Onet_engine(const char *path);
     ~Onet_engine();
     void init(int row, int col);
     friend class Onet;

@@ -4,13 +4,15 @@
 #include "rnet_rt.h"
 
 
-Rnet_engine::Rnet_engine() : baseEngine("../mtCNNModels/det2_relu.prototxt",
-                                        "../mtCNNModels/det2_relu.caffemodel",
+Rnet_engine::Rnet_engine(const char *path) : baseEngine(path,
+                                        path,
                                         "data",
                                         "conv5-2",
                                         "prob1"
 
                                         ) {
+    prototxt = prototxt + "det2_relu.prototxt";
+    model = model + "det2_relu.caffemodel";
 };
 
 Rnet_engine::~Rnet_engine() {

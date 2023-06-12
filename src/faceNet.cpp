@@ -69,17 +69,18 @@ void FaceNetClassifier::createOrLoadEngine() {
         }
 
         /* build engine */
-        if (m_dtype == DataType::kHALF)
-        {
-            config->setFlag(BuilderFlag::kFP16);
-        }
-        else if (m_dtype == DataType::kINT8) {
-            config->setFlag(BuilderFlag::kINT8);
-            // ToDo
-            //builder->setInt8Calibrator()
-        }
+//         if (m_dtype == DataType::kHALF)
+//         {
+//             config->setFlag(BuilderFlag::kFP16);
+//         }
+//         else if (m_dtype == DataType::kINT8) {
+//             config->setFlag(BuilderFlag::kINT8);
+//             // ToDo
+//             //builder->setInt8Calibrator()
+//         }
         builder->setMaxBatchSize(m_batchSize);
         config->setMaxWorkspaceSize(1<<30);
+        config->setFlag(nvinfer1::BuilderFlag::kFP16);
         // strict will force selected datatype, even when another was faster
         //builder->setStrictTypeConstraints(true);
         // Disable DLA, because many layers are still not supported
@@ -227,8 +228,12 @@ void FaceNetClassifier::featureMatching(cv::Mat &image) {
             currEmbedding.clear();
         }
         float fontScaler = static_cast<float>(m_croppedFaces[i].x2 - m_croppedFaces[i].x1)/static_cast<float>(m_frameWidth);
-        cv::rectangle(image, cv::Point(m_croppedFaces[i].y1, m_croppedFaces[i].x1), cv::Point(m_croppedFaces[i].y2, m_croppedFaces[i].x2), 
+
+        cv::rectangle(image, 
+            cv::Point(m_croppedFaces[i].y1, m_croppedFaces[i].x1), 
+            cv::Point(m_croppedFaces[i].y2, m_croppedFaces[i].x2), 
                         cv::Scalar(0,0,255), 2,8,0);
+
         if (minDistance <= m_knownPersonThresh) {
             cv::putText(image, m_knownFaces[winner].className, cv::Point(m_croppedFaces[i].y1+2, m_croppedFaces[i].x2-3),
                     cv::FONT_HERSHEY_DUPLEX, 0.1 + 2*fontScaler,  cv::Scalar(0,0,255,255), 1);
@@ -238,6 +243,45 @@ void FaceNetClassifier::featureMatching(cv::Mat &image) {
                     cv::FONT_HERSHEY_DUPLEX, 0.1 + 2*fontScaler ,  cv::Scalar(0,0,255,255), 1);
         }
     }
+}
+
+vector<struct Bbox> FaceNetClassifier::featureMatching2(cv::Mat &image) {
+    vector<struct Bbox> result;
+
+    for(int i = 0; i < (m_embeddings.size()/128); i++) {
+        double minDistance = 10.* m_knownPersonThresh;
+        float currDistance = 0.;
+        int winner = -1;
+        for (int j = 0; j < m_knownFaces.size(); j++) {
+            std:vector<float> currEmbedding(128);
+            std::copy_n(m_embeddings.begin()+(i*128), 128, currEmbedding.begin());
+            currDistance = vectors_distance(currEmbedding, m_knownFaces[j].embeddedFace);
+            if (currDistance < minDistance) {
+                    minDistance = currDistance;
+                    winner = j;
+            }
+            currEmbedding.clear();
+        }
+
+        struct Bbox box;
+        box.x1 = m_croppedFaces[i].x1;
+        box.y1 = m_croppedFaces[i].y1;
+        box.x2 = m_croppedFaces[i].x2;
+        box.y2 = m_croppedFaces[i].y2;
+
+// return a matching face
+// store the ID as the score
+        if (minDistance <= m_knownPersonThresh) 
+        {
+            box.score = winner;
+        }
+        else
+        {
+            box.score = -1;
+        }
+        result.push_back(box);
+    }
+    return result;
 }
 
 void FaceNetClassifier::addNewFace(cv::Mat &image, std::vector<struct Bbox> outputBbox) {
